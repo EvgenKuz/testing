@@ -1,33 +1,88 @@
 ﻿using System;
 using System.Text.RegularExpressions;
-using FluentAssertions;
 using NUnit.Framework;
 
 namespace HomeExercises
 {
+	[TestFixture]
 	public class NumberValidatorTests
 	{
 		[Test]
-		public void Test()
-		{
-			Assert.Throws<ArgumentException>(() => new NumberValidator(-1, 2, true));
-			Assert.DoesNotThrow(() => new NumberValidator(1, 0, true));
-			Assert.Throws<ArgumentException>(() => new NumberValidator(-1, 2, false));
-			Assert.DoesNotThrow(() => new NumberValidator(1, 0, true));
+		public void Constructor_Should_ThrowArgumentException_When_GivenNegativePrecision()
+			=> Assert.Throws<ArgumentException>(() => new NumberValidator(-1, 2));
 
-			Assert.IsTrue(new NumberValidator(17, 2, true).IsValidNumber("0.0"));
-			Assert.IsTrue(new NumberValidator(17, 2, true).IsValidNumber("0"));
-			Assert.IsTrue(new NumberValidator(17, 2, true).IsValidNumber("0.0"));
-			Assert.IsFalse(new NumberValidator(3, 2, true).IsValidNumber("00.00"));
-			Assert.IsFalse(new NumberValidator(3, 2, true).IsValidNumber("-0.00"));
-			Assert.IsTrue(new NumberValidator(17, 2, true).IsValidNumber("0.0"));
-			Assert.IsFalse(new NumberValidator(3, 2, true).IsValidNumber("+0.00"));
-			Assert.IsTrue(new NumberValidator(4, 2, true).IsValidNumber("+1.23"));
-			Assert.IsFalse(new NumberValidator(3, 2, true).IsValidNumber("+1.23"));
-			Assert.IsFalse(new NumberValidator(17, 2, true).IsValidNumber("0.000"));
-			Assert.IsFalse(new NumberValidator(3, 2, true).IsValidNumber("-1.23"));
-			Assert.IsFalse(new NumberValidator(3, 2, true).IsValidNumber("a.sd"));
-		}
+		[Test]
+		public void Constructor_Should_ThrowArgumentException_When_GivenZeroPrecision()
+			=> Assert.Throws<ArgumentException>(() => new NumberValidator(0, 2));
+
+		[TestCase(1, 0, true, TestName = "onlyPositive is true and scale is zero")]
+		[TestCase(5, 2, false, TestName = "onlyPositive is false and scale is less then precision")]
+		[TestCase(10, 9, TestName = "Scale is one less than precision")]
+		public void Constructor_Should_NotThrow_When_GivenCorrectPrecisionAndScale(int precision, int scale, bool onlyPositive = false)
+			=> Assert.DoesNotThrow(() => new NumberValidator(precision, scale, onlyPositive));
+
+		[Test]
+		public void Constructor_Should_ThrowArgumentException_When_GivenNegativeScale()
+			=> Assert.Throws<ArgumentException>(() => new NumberValidator(1, -1));
+		
+		[Test]
+		public void Constructor_Should_ThrowArgumentException_When_GivenScaleBiggerThanPrecision()
+			=> Assert.Throws<ArgumentException>(() => new NumberValidator(1, 2));
+
+		[Test]
+		public void Constructor_Should_ThrowArgumentException_When_GivenScaleEqualToPrecision()
+			=> Assert.Throws<ArgumentException>(() => new NumberValidator(1, 1));
+	
+		[TestCase("", TestName = "Empty string")]
+		[TestCase(null, TestName = "Null check")]
+		[TestCase(" ", TestName = "1 Space")]
+		[TestCase("\t", TestName = "1 Tab")]
+		[TestCase("\n", TestName = "New Line")]
+		[TestCase("\r\n", TestName = "Windows New Line")]
+		[TestCase("a.bd", TestName = "Not numbers separated with a dot")]
+		[TestCase("2.a", TestName = "Mixing symbols with numbers, symbol after the dot")]
+		[TestCase("a.2", TestName = "Mixing symbols with numbers, symbol before the dot")]
+		[TestCase("0-1", TestName = "Negative number after zero")]
+		[TestCase(".0", TestName = "No digits before the dot")]
+		[TestCase("0.", TestName = "No digits after the dot")]
+		[TestCase(" 0.1", TestName = "Space before correct number")]
+		public void IsValidNumber_Should_Be_False_When_GivenStringInIncorrectFormat(string value)
+			=> Assert.IsFalse(new NumberValidator(int.MaxValue, int.MaxValue - 1).IsValidNumber(value));
+		
+
+		[TestCase(3, "10.02", TestName = "More digits than precision")]
+		[TestCase(3, "+3.01", TestName = "Is + affecting precision check")]
+		[TestCase(3, "-0.05", TestName = "Is - affecting precision check")]
+		[TestCase(2, "0.00", TestName = "Zeros are not ignored")]
+		public void IsValidNumber_Should_Be_False_When_GivenNumberWithIncorrectPrecision(int precision, string value)
+			=> Assert.IsFalse(new NumberValidator(precision, precision - 1).IsValidNumber(value));
+		
+		
+		[TestCase("-1.23", TestName = "Negative number with the dot")]
+		[TestCase("-0.00", TestName = "Negative zero")]
+		[TestCase("-60", TestName = "Negative number without the dot")]
+		public void IsValidNumber_Should_Be_False_When_GivenNegativeNumber_And_onlyPositive_Is_True(string value)
+			=> Assert.IsFalse(new NumberValidator(4, 2, true).IsValidNumber(value));
+		
+		
+		[TestCase(2, "0.002", TestName = "Number of digits after dot is more than scale")]
+		[TestCase(1, "10.10", TestName = "Zeros at the end count towards scale")]
+		[TestCase(0, "1.1", TestName = "With scale=0 anything after dot")]
+		public void IsValidNumber_Should_Be_False_When_GivenNumberWithIncorrectScale(int scale, string value)
+			=> Assert.IsFalse(new NumberValidator(int.MaxValue, scale).IsValidNumber(value));
+		
+		
+		[TestCase("0.1", TestName = "Number with decimal point")]
+		[TestCase("2", TestName = "Whole number")]
+		[TestCase("+0", TestName = "Positive zero")]
+		[TestCase("-0", TestName = "Negative zero")]
+		[TestCase("+1.23", TestName = "Positive number with decimal point")]
+		[TestCase("-2.4444", TestName = "Negative number with decimal point")]
+		[TestCase("00002.20000", TestName = "Leading and following zero for 2.2")]
+		[TestCase("0.0", TestName = "Zero with decimal point")]
+		[TestCase("1,4", TestName = "Number with decimal comma")]
+		public void IsValidNumber_Should_Be_True_When_GivenCorrectNumber(string value)
+			=> Assert.IsTrue(new NumberValidator(int.MaxValue, int.MaxValue - 1).IsValidNumber(value));
 	}
 
 	public class NumberValidator
@@ -46,7 +101,7 @@ namespace HomeExercises
 				throw new ArgumentException("precision must be a positive number");
 			if (scale < 0 || scale >= precision)
 				throw new ArgumentException("precision must be a non-negative number less or equal than precision");
-			numberRegex = new Regex(@"^([+-]?)(\d+)([.,](\d+))?$", RegexOptions.IgnoreCase);
+			numberRegex = new Regex(@"^(?<sign>[+-]?)(?<intPart>\d+)([.,](?<fracPart>\d+))?$", RegexOptions.IgnoreCase);
 		}
 
 		public bool IsValidNumber(string value)
@@ -65,14 +120,14 @@ namespace HomeExercises
 				return false;
 
 			// Знак и целая часть
-			var intPart = match.Groups[1].Value.Length + match.Groups[2].Value.Length;
+			var intPart = match.Groups["sign"].Value.Length + match.Groups["intPart"].Value.Length;
 			// Дробная часть
-			var fracPart = match.Groups[4].Value.Length;
+			var fracPart = match.Groups["fracPart"].Value.Length;
 
 			if (intPart + fracPart > precision || fracPart > scale)
 				return false;
 
-			if (onlyPositive && match.Groups[1].Value == "-")
+			if (onlyPositive && match.Groups["sign"].Value == "-")
 				return false;
 			return true;
 		}
